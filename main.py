@@ -117,4 +117,4 @@ print(f"  model = Qwen3VLForConditionalGeneration.from_pretrained('{merged_model
 print(f"  processor = AutoProcessor.from_pretrained('{merged_model_path}')")
 print("\n💡 참고: Merged 모델은 full precision입니다.")
 ##print("   메모리를 절약하려면 다시 양자화하여 로드할 수 있습니다:")
-print(f"  model = Qwen3VLForConditionalGeneration.from_pretrained('{merged_model_path}', quantization_config=bnb_config)")
+#print(f"  model = Qwen3VLForConditionalGeneration.from_pretrained('{merged_model_path}', quantization_config=bnb_config)")
