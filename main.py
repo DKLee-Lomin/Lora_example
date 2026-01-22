@@ -37,7 +37,7 @@ print(f"   ✓ Processor loaded")
 
 # 4. QLoRA adapter 로드
 print(f"\n4. Loading QLoRA adapter from: {lora_adapter_path}")
-model = PeftModel.from_pretrained(base_model, lora_adapter_path)
+#model = PeftModel.from_pretrained(base_model, lora_adapter_path)
 print(f"   ✓ QLoRA adapter loaded")
 
 # 5. 모델 merge (dequantize 후 merge)
