@@ -5,7 +5,7 @@ import math
 def distance_3d(p1, p2):
     x1, y1, z1 = p1
     x2, y2, z2 = p2
-    return math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2 + (z2 - z1) ** 2)
+    return math.sqrt((x2 - x1) * 2 + (y2 - y1) ** 2 + (z2 - z1) ** 2)
 
 
 # Return midpoint coordinates between two 3D points.
