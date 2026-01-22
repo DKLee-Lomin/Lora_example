@@ -1,0 +1,35 @@
+name: Gemini AI Code Review
+
+# PR이 생성되거나, 새로운 커밋이 푸시될 때 실행됩니다.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  review:
+# PR에 'AI-Review'라는 레이블이 포함되어 있을 때만 실행됩니다.
+    if: contains(github.event.pull_request.labels.*.name, 'ai_review')
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # PR에 댓글을 달기 위해 필요합니다.
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Gemini AI Review
+        # 검증된 커뮤니티 액션을 사용합니다.
+        uses: sshnaidm/gemini-code-review-action@v1
+        with:
+          gemini-key: ${{ secrets.GEMINI_API_KEY }}
+          model: "gemini-3-flash-preview" # 속도와 비용 면에서 효율적인 flash 모델 추천
+          # 팀의 성격에 맞게 프롬프트를 커스터마이징할 수 있습니다.
+          prompt: |
+            당신은 숙련된 AI 엔지니어입니다. 
+            제공된 코드 변경 사항(diff)을 분석하고 다음 기준에 따라 리뷰를 작성해 주세요:
+            1. 잠재적인 버그나 성능 저하 요인이 있는가?
+            2. 코드 가독성과 클린 코드 원칙을 준수하는가?
+            3. 보완이 필요한 경우 구체적인 수정 코드 예시를 포함할 것.
+            4. 답변은 한국어로 작성할 것.
