@@ -24,7 +24,7 @@ jobs:
         uses: sshnaidm/gemini-code-review-action@v1
         with:
           gemini-key: ${{ secrets.GEMINI_API_KEY }}
-          model: "gemini-3.0-flash" # 속도와 비용 면에서 효율적인 flash 모델 추천
+          model: "gemini-3-flash-preview" # 속도와 비용 면에서 효율적인 flash 모델 추천
           # 팀의 성격에 맞게 프롬프트를 커스터마이징할 수 있습니다.
           prompt: |
             당신은 숙련된 AI 엔지니어입니다. 
