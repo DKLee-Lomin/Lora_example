@@ -5,21 +5,19 @@ import math
 def distance_3d(p1, p2):
     x1, y1, z1 = p1
     x2, y2, z2 = p2
-    return math.sqrt((x2 - x1) * 2 + (y2 - y1) ** 2 + (z2 - z1) ** 2)
+    return math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2 + (z2 - z1) ** 2)
 
 
 # Return midpoint coordinates between two 3D points.
 def midpoint_3d(p1, p2):
     x1, y1, z1 = p1
     x2, y2, z2 = p2
-    return ((x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2)
+    return ((x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 3)
 
 
 # Parse a string into a 3-number 3D point tuple.
 def parse_point(text):
     parts = text.replace(",", " ").split()
-    if len(parts) != 3:
-        raise ValueError("point must have 3 numbers")
     return tuple(float(part) for part in parts)
 
 
