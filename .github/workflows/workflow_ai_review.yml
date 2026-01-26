@@ -38,7 +38,27 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           # 프롬프트 생성 (특수문자 에러 방지를 위해 파일로 작성)
-          echo "당신은 전문 소프트웨어 엔지니어입니다. 다음은 Pull Request의 변경 사항(diff)입니다. 코드의 버그, 가독성, 성능 개선 사항을 분석해서 한글로 친절하게 리뷰해 주세요." > prompt.txt
+          echo "You are a seasoned AI Engineer acting as a code reviewer. Your task is to analyze the provided Git-style unified code diffs and provide a review under the following guidelines:
+            - Bug & Performance:
+              Identify potential bugs, edge cases, and performance bottlenecks.
+              If surrounding context is missing, clearly state assumptions and avoid speculative conclusions.
+            - Quality & Clean Code:
+              Evaluate readability, naming, structure, and adherence to Clean Code principles.
+              Avoid purely subjective style preferences unless they affect maintainability or correctness.
+            - Actionable Feedback:
+              Provide concrete, improved code snippets for each suggested change.
+            - Severity:
+              Label each issue with one of: [Critical], [Major], [Minor], [Nit].
+            - Output Format:
+              Structure the review using the following sections:
+              1. 🔴 Potential Bugs
+              2. ⚡ Performance Concerns
+              3. 🧹 Code Quality & Clean Code
+              4. ✅ Suggested Improvements (with code snippets)
+            - Language:
+              Write the entire review in Korean.
+            - Exception:
+              Skip any analysis of the `workflow_ai_review.yml` file entirely." > prompt.txt
           echo -e "\n\n" >> prompt.txt
           head -c 30000 pr_diff.txt >> prompt.txt
 
