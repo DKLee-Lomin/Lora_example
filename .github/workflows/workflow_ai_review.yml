@@ -2,67 +2,60 @@ name: AI Code Reviewer
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize] # PR이 열리거나 코드가 푸시될 때 실행
 
 permissions:
-  contents: read
-  pull-requests: write
+  contents: read      # 코드 읽기 권한
+  pull-requests: write # PR에 댓글 쓰기 권한
 
 jobs:
   review:
     runs-on: ubuntu-latest
     steps:
-      # 1. 코드 체크아웃 (변경 사항 비교를 위해 전체 이력 가져옴)
+      # 1. 코드 체크아웃 (이건 GitHub 공식 Action이라 허용 범위로 간주합니다)
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 2 # 이전 커밋과의 차이점을 알기 위해 2단계까지 가져옵니다.
 
-      # 2. PR의 Diff(변경 내용) 추출
+      # 2. PR의 변경 사항(Diff) 추출
       - name: Get PR Diff
         id: get_diff
         run: |
-          # base 브랜치와 head 브랜치 사이의 변경 내역을 추출하여 파일로 저장
-          git diff origin/${{ github.base_ref }}...origin/${{ github.head_ref }} > pr_diff.txt
-          echo "diff_path=pr_diff.txt" >> $GITHUB_OUTPUT
+          # 메인 브랜치와 현재 PR 브랜치 간의 차이점을 추출하여 파일로 저장
+          git diff origin/${{ github.base_ref }} HEAD > pr_diff.txt
+          echo "Diff extracted."
 
-      # 3. ChatGPT API 호출 및 리뷰 결과 생성
-      - name: Request Code Review from ChatGPT
-        id: chatgpt
+      # 3. Gemini API 호출 및 리뷰 생성
+      - name: Request Review from Gemini
+        id: gemini_request
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          # Diff 내용 읽기 (너무 크면 API 제한에 걸릴 수 있으므로 적절히 조절 필요)
-          DIFF_CONTENT=$(cat pr_diff.txt | head -c 10000) 
+          # Diff 내용이 너무 크면 API 제한에 걸릴 수 있으므로 일부 전처리
+          DIFF_CONTENT=$(cat pr_diff.txt | head -c 30000) # 최대 3만 자 제한
           
-          # JSON 본문 생성 (jq를 사용하여 특수문자 이스케이프 처리)
-          PROMPT="너는 숙련된 소프트웨어 엔지니어다. 다음 PR 변경사항을 검토하고, 코드 품질, 잠재적 버그, 가독성 측면에서 피드백을 한국어로 줘. 리뷰는 마크다운 형식으로 작성해줘.\n\n$DIFF_CONTENT"
+          # JSON 페이로드 생성 (jq를 사용해 안전하게 이스케이프)
+          PROMPT="당신은 전문 소프트웨어 엔지니어입니다. 다음은 Pull Request의 변경 사항(diff)입니다. 코드의 버그, 가독성, 성능 개선 사항을 분석해서 한글로 친절하게 리뷰해 주세요.\n\n$DIFF_CONTENT"
           
-          # API 호출
-          RESPONSE=$(curl -s https://api.openai.com/v1/chat/completions \
+          PAYLOAD=$(jq -n --arg msg "$PROMPT" '{contents: [{parts: [{text: $msg}]}]}')
+
+          # Gemini API 호출
+          RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$GEMINI_API_KEY" \
             -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $OPENAI_API_KEY" \
-            -d "{
-              \"model\": \"gpt-4o-mini\",
-              \"messages\": [{\"role\": \"user\", \"content\": \"$PROMPT\"}]
-            }")
+            -d "$PAYLOAD")
 
-          # 결과값 추출 (jq 설치되어 있음)
-          REVIEW_TEXT=$(echo "$RESPONSE" | jq -r '.choices[0].message.content')
+          # 결과에서 텍스트만 추출 (jq 사용)
+          REVIEW_TEXT=$(echo $RESPONSE | jq -r '.candidates[0].content.parts[0].text')
           
-          # 결과를 파일로 저장 (멀티라인 출력을 위해 파일 사용 권장)
-          echo "$REVIEW_TEXT" > review_result.md
+          # 결과를 파일로 저장 (환경 변수 크기 제한 방지)
+          echo "$REVIEW_TEXT" > review_result.txt
 
-      # 4. PR에 댓글 달기
-      - name: Post Review Comment
+      # 4. GitHub PR에 댓글 작성
+      - name: Comment PR
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          COMMENT_BODY=$(cat review_result.md)
-          
-          # GitHub API를 사용하여 댓글 등록
-          curl -s -X POST \
-            -H "Authorization: token $GITHUB_TOKEN" \
-            -H "Accept: application/vnd.github.v3+json" \
-            -d "$(jq -n --arg body "$COMMENT_BODY" '{body: $body}')" \
-            "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments"
+          REVIEW_BODY=$(cat review_result.txt)
+          # GitHub CLI(gh)를 사용하여 댓글 게시 (Ubuntu 환경에 기본 내장됨)
+          gh pr comment ${{ github.event.pull_request.number }} --body "$REVIEW_BODY"
