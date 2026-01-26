@@ -1,0 +1,68 @@
+name: AI Code Reviewer
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. 코드 체크아웃 (변경 사항 비교를 위해 전체 이력 가져옴)
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 2. PR의 Diff(변경 내용) 추출
+      - name: Get PR Diff
+        id: get_diff
+        run: |
+          # base 브랜치와 head 브랜치 사이의 변경 내역을 추출하여 파일로 저장
+          git diff origin/${{ github.base_ref }}...origin/${{ github.head_ref }} > pr_diff.txt
+          echo "diff_path=pr_diff.txt" >> $GITHUB_OUTPUT
+
+      # 3. ChatGPT API 호출 및 리뷰 결과 생성
+      - name: Request Code Review from ChatGPT
+        id: chatgpt
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          # Diff 내용 읽기 (너무 크면 API 제한에 걸릴 수 있으므로 적절히 조절 필요)
+          DIFF_CONTENT=$(cat pr_diff.txt | head -c 10000) 
+          
+          # JSON 본문 생성 (jq를 사용하여 특수문자 이스케이프 처리)
+          PROMPT="너는 숙련된 소프트웨어 엔지니어다. 다음 PR 변경사항을 검토하고, 코드 품질, 잠재적 버그, 가독성 측면에서 피드백을 한국어로 줘. 리뷰는 마크다운 형식으로 작성해줘.\n\n$DIFF_CONTENT"
+          
+          # API 호출
+          RESPONSE=$(curl -s https://api.openai.com/v1/chat/completions \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $OPENAI_API_KEY" \
+            -d "{
+              \"model\": \"gpt-4o-mini\",
+              \"messages\": [{\"role\": \"user\", \"content\": \"$PROMPT\"}]
+            }")
+
+          # 결과값 추출 (jq 설치되어 있음)
+          REVIEW_TEXT=$(echo "$RESPONSE" | jq -r '.choices[0].message.content')
+          
+          # 결과를 파일로 저장 (멀티라인 출력을 위해 파일 사용 권장)
+          echo "$REVIEW_TEXT" > review_result.md
+
+      # 4. PR에 댓글 달기
+      - name: Post Review Comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          COMMENT_BODY=$(cat review_result.md)
+          
+          # GitHub API를 사용하여 댓글 등록
+          curl -s -X POST \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            -d "$(jq -n --arg body "$COMMENT_BODY" '{body: $body}')" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments"
