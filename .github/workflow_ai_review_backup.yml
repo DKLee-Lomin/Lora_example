@@ -1,0 +1,50 @@
+name: Gemini AI Code Review
+
+# PR이 생성되거나, 새로운 커밋이 푸시될 때 실행됩니다.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  review:
+# PR에 'AI-Review'라는 레이블이 포함되어 있을 때만 실행됩니다.
+    if: contains(github.event.pull_request.labels.*.name, 'ai_review')
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # PR에 댓글을 달기 위해 필요합니다.
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Gemini AI Review
+        # 검증된 커뮤니티 액션을 사용합니다.
+        uses: sshnaidm/gemini-code-review-action@v1
+        with:
+          gemini-key: ${{ secrets.GEMINI_API_KEY }}
+          model: "gemini-3-flash-preview" # 속도와 비용 면에서 효율적인 flash 모델 추천
+          # 팀의 성격에 맞게 프롬프트를 커스터마이징할 수 있습니다.
+          prompt: |
+            You are a seasoned AI Engineer acting as a code reviewer. Your task is to analyze the provided Git-style unified code diffs and provide a review under the following guidelines:
+            - Bug & Performance:
+              Identify potential bugs, edge cases, and performance bottlenecks.
+              If surrounding context is missing, clearly state assumptions and avoid speculative conclusions.
+            - Quality & Clean Code:
+              Evaluate readability, naming, structure, and adherence to Clean Code principles.
+              Avoid purely subjective style preferences unless they affect maintainability or correctness.
+            - Actionable Feedback:
+              Provide concrete, improved code snippets for each suggested change.
+            - Severity:
+              Label each issue with one of: [Critical], [Major], [Minor], [Nit].
+            - Output Format:
+              Structure the review using the following sections:
+              1. 🔴 Potential Bugs
+              2. ⚡ Performance Concerns
+              3. 🧹 Code Quality & Clean Code
+              4. ✅ Suggested Improvements (with code snippets)
+            - Language:
+              Write the entire review in Korean.
+            - Exception:
+              Skip any analysis of the `workflow_ai_review.yml` file entirely.
