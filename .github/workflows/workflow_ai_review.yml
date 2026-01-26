@@ -12,18 +12,23 @@ jobs:
   review:
     runs-on: ubuntu-latest
     steps:
-      # 1. 코드 체크아웃 (이건 GitHub 공식 Action이라 허용 범위로 간주합니다)
+      # 1. 코드 체크아웃
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2 # 이전 커밋과의 차이점을 알기 위해 2단계까지 가져옵니다.
+          fetch-depth: 2 # 기본적으로 현재와 이전 커밋만 가져옴
 
-      # 2. PR의 변경 사항(Diff) 추출
+      # 2. 비교 대상인 Base Branch(예: main) 정보를 가져옴
+      - name: Fetch base branch
+        run: |
+          git fetch origin ${{ github.base_ref }} --depth=1
+
+      # 3. PR의 변경 사항(Diff) 추출
       - name: Get PR Diff
         id: get_diff
         run: |
-          # 메인 브랜치와 현재 PR 브랜치 간의 차이점을 추출하여 파일로 저장
-          git diff origin/${{ github.base_ref }} HEAD > pr_diff.txt
+          # FETCH_HEAD는 방금 fetch해온 대상을 가리킵니다.
+          git diff FETCH_HEAD HEAD > pr_diff.txt
           echo "Diff extracted."
 
       # 3. Gemini API 호출 및 리뷰 생성
