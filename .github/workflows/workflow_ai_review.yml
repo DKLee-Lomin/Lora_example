@@ -36,27 +36,7 @@ jobs:
           DIFF_CONTENT=$(cat pr_diff.txt | head -c 10000) 
           
           # JSON 본문 생성 (jq를 사용하여 특수문자 이스케이프 처리)
-          PROMPT="You are a seasoned AI Engineer acting as a code reviewer. Your task is to analyze the provided Git-style unified code diffs and provide a review under the following guidelines:
-            - Bug & Performance:
-              Identify potential bugs, edge cases, and performance bottlenecks.
-              If surrounding context is missing, clearly state assumptions and avoid speculative conclusions.
-            - Quality & Clean Code:
-              Evaluate readability, naming, structure, and adherence to Clean Code principles.
-              Avoid purely subjective style preferences unless they affect maintainability or correctness.
-            - Actionable Feedback:
-              Provide concrete, improved code snippets for each suggested change.
-            - Severity:
-              Label each issue with one of: [Critical], [Major], [Minor], [Nit].
-            - Output Format:
-              Structure the review using the following sections:
-              1. 🔴 Potential Bugs
-              2. ⚡ Performance Concerns
-              3. 🧹 Code Quality & Clean Code
-              4. ✅ Suggested Improvements (with code snippets)
-            - Language:
-              Write the entire review in Korean.
-            - Exception:
-              Skip any analysis of the `workflow_ai_review.yml` file entirely.\n\n$DIFF_CONTENT"
+          PROMPT="너는 숙련된 소프트웨어 엔지니어다. 다음 PR 변경사항을 검토하고, 코드 품질, 잠재적 버그, 가독성 측면에서 피드백을 한국어로 줘. 리뷰는 마크다운 형식으로 작성해줘.\n\n$DIFF_CONTENT"
           
           # API 호출
           RESPONSE=$(curl -s https://api.openai.com/v1/chat/completions \
