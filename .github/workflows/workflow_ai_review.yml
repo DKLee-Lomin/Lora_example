@@ -1,33 +1,42 @@
-name: Gemini AI Code Review
+name: AI Code Reviewer
 
-# PR이 생성되거나, 새로운 커밋이 푸시될 때 실행됩니다.
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
 
 jobs:
   review:
-# PR에 'AI-Review'라는 레이블이 포함되어 있을 때만 실행됩니다.
-    if: contains(github.event.pull_request.labels.*.name, 'ai_review')
-
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write # PR에 댓글을 달기 위해 필요합니다.
-
     steps:
-      - name: Checkout Repository
+      # 1. 코드 체크아웃 (변경 사항 비교를 위해 전체 이력 가져옴)
+      - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Gemini AI Review
-        # 검증된 커뮤니티 액션을 사용합니다.
-        uses: sshnaidm/gemini-code-review-action@v1
         with:
-          gemini-key: ${{ secrets.GEMINI_API_KEY }}
-          model: "gemini-3-flash-preview" # 속도와 비용 면에서 효율적인 flash 모델 추천
-          # 팀의 성격에 맞게 프롬프트를 커스터마이징할 수 있습니다.
-          prompt: |
-            You are a seasoned AI Engineer acting as a code reviewer. Your task is to analyze the provided Git-style unified code diffs and provide a review under the following guidelines:
+          fetch-depth: 0
+
+      # 2. PR의 Diff(변경 내용) 추출
+      - name: Get PR Diff
+        id: get_diff
+        run: |
+          # base 브랜치와 head 브랜치 사이의 변경 내역을 추출하여 파일로 저장
+          git diff origin/${{ github.base_ref }}...origin/${{ github.head_ref }} > pr_diff.txt
+          echo "diff_path=pr_diff.txt" >> $GITHUB_OUTPUT
+
+      # 3. ChatGPT API 호출 및 리뷰 결과 생성
+      - name: Request Code Review from ChatGPT
+        id: chatgpt
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          # Diff 내용 읽기 (너무 크면 API 제한에 걸릴 수 있으므로 적절히 조절 필요)
+          DIFF_CONTENT=$(cat pr_diff.txt | head -c 10000) 
+          
+          # JSON 본문 생성 (jq를 사용하여 특수문자 이스케이프 처리)
+          PROMPT="You are a seasoned AI Engineer acting as a code reviewer. Your task is to analyze the provided Git-style unified code diffs and provide a review under the following guidelines:
             - Bug & Performance:
               Identify potential bugs, edge cases, and performance bottlenecks.
               If surrounding context is missing, clearly state assumptions and avoid speculative conclusions.
@@ -47,4 +56,33 @@ jobs:
             - Language:
               Write the entire review in Korean.
             - Exception:
-              Skip any analysis of the `workflow_ai_review.yml` file entirely.
+              Skip any analysis of the `workflow_ai_review.yml` file entirely.\n\n$DIFF_CONTENT"
+          
+          # API 호출
+          RESPONSE=$(curl -s https://api.openai.com/v1/chat/completions \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $OPENAI_API_KEY" \
+            -d "{
+              \"model\": \"gpt-4o-mini\",
+              \"messages\": [{\"role\": \"user\", \"content\": \"$PROMPT\"}]
+            }")
+
+          # 결과값 추출 (jq 설치되어 있음)
+          REVIEW_TEXT=$(echo "$RESPONSE" | jq -r '.choices[0].message.content')
+          
+          # 결과를 파일로 저장 (멀티라인 출력을 위해 파일 사용 권장)
+          echo "$REVIEW_TEXT" > review_result.md
+
+      # 4. PR에 댓글 달기
+      - name: Post Review Comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          COMMENT_BODY=$(cat review_result.md)
+          
+          # GitHub API를 사용하여 댓글 등록
+          curl -s -X POST \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            -d "$(jq -n --arg body "$COMMENT_BODY" '{body: $body}')" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments"
