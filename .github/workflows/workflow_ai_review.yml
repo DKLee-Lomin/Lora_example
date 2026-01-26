@@ -46,7 +46,7 @@ jobs:
           jq -n --rawfile msg prompt.txt '{contents: [{parts: [{text: $msg}]}]}' > payload.json
 
           # API 호출 및 응답 저장
-          RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$GEMINI_API_KEY" \
+          RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=$GEMINI_API_KEY" \
             -H "Content-Type: application/json" \
             -d @payload.json)
 
