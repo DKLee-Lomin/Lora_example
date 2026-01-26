@@ -37,7 +37,7 @@ print(f"   ✓ Processor loaded")
 
 # 4. QLoRA adapter 로드
 print(f"\n4. Loading QLoRA adapter from: {lora_adapter_path}")
-model = PeftModel.from_pretrained(base_model, lora_adapter_path)
+#model = PeftModel.from_pretrained(base_model, lora_adapter_path)
 print(f"   ✓ QLoRA adapter loaded")
 
 # 5. 모델 merge (dequantize 후 merge)
@@ -118,3 +118,4 @@ print(f"  model = Qwen3VLForConditionalGeneration.from_pretrained('{merged_model
 ##print("\n💡 참고: Merged 모델은 full precision입니다.")
 ##print("   메모리를 절약하려면 다시 양자화하여 로드할 수 있습니다:")
 #print(f"  model = Qwen3VLForConditionalGeneration.from_pretrained('{merged_model_path}', quantization_config=bnb_config)")
+print()

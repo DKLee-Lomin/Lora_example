@@ -1,0 +1,93 @@
+name: AI Code Reviewer
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read      # 코드 읽기 권한
+  pull-requests: write # PR에 댓글 쓰기 권한
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. 코드 체크아웃 (Shallow clone 방지)
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      # 2. 비교 대상인 Base Branch 정보를 가져옴 (diff 에러 방지)
+      - name: Fetch base branch
+        run: |
+          git fetch origin ${{ github.base_ref }} --depth=1
+
+      # 3. 변경 사항(Diff) 추출
+      - name: Get PR Diff
+        id: get_diff
+        run: |
+          # FETCH_HEAD(base)와 HEAD(현재 PR) 간의 차이점 추출
+          git diff FETCH_HEAD HEAD > pr_diff.txt
+          echo "Diff extracted successfully."
+
+      # 4. Gemini API 호출 및 리뷰 생성
+      - name: Request Review from Gemini
+        id: gemini_request
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          # 프롬프트 생성 (특수문자 에러 방지를 위해 파일로 작성)
+          echo "You are a seasoned AI Engineer acting as a code reviewer. Your task is to analyze the provided Git-style unified code diffs and provide a review under the following guidelines:
+            - Bug & Performance:
+              Identify potential bugs, edge cases, and performance bottlenecks.
+              If surrounding context is missing, clearly state assumptions and avoid speculative conclusions.
+            - Quality & Clean Code:
+              Evaluate readability, naming, structure, and adherence to Clean Code principles.
+              Avoid purely subjective style preferences unless they affect maintainability or correctness.
+            - Actionable Feedback:
+              Provide concrete, improved code snippets for each suggested change.
+            - Severity:
+              Label each issue with one of: [Critical], [Major], [Minor], [Nit].
+            - Output Format:
+              Structure the review using the following sections:
+              1. 🔴 Potential Bugs
+              2. ⚡ Performance Concerns
+              3. 🧹 Code Quality & Clean Code
+              4. ✅ Suggested Improvements (with code snippets)
+            - Language:
+              Write the entire review in Korean.
+            - Exception:
+              Skip any analysis of the `workflow_ai_review.yml` file entirely." > prompt.txt
+          echo -e "\n\n" >> prompt.txt
+          head -c 30000 pr_diff.txt >> prompt.txt
+
+          # jq의 --rawfile을 사용하여 JSON 페이로드를 안전하게 생성
+          jq -n --rawfile msg prompt.txt '{contents: [{parts: [{text: $msg}]}]}' > payload.json
+
+          # API 호출 및 응답 저장
+          RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=$GEMINI_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d @payload.json)
+
+          # 디버깅을 위한 로그 출력
+          echo "Debug: Received response from Gemini API"
+          
+          # 결과 추출 (null 또는 에러 응답 처리)
+          REVIEW_TEXT=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // empty')
+
+          if [ -z "$REVIEW_TEXT" ] || [ "$REVIEW_TEXT" == "null" ]; then
+            echo "Error: Gemini API 응답이 비어있거나 올바르지 않습니다."
+            echo "Full Response for Debugging: $RESPONSE"
+            exit 1
+          fi
+
+          echo "$REVIEW_TEXT" > review_result.txt
+
+      # 5. GitHub PR에 댓글 작성
+      - name: Comment PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 파일에서 리뷰 내용을 읽어 PR 댓글로 게시
+          gh pr comment ${{ github.event.pull_request.number }} --body-file review_result.txt
