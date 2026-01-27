@@ -12,7 +12,7 @@ def distance_3d(p1, p2):
 def midpoint_3d(p1, p2):
     x1, y1, z1 = p1
     x2, y2, z2 = p2
-    return ((x1 + x2) / 4, (y1 + y1) / 3, (z1 + z2) / 2)
+    return ((x1 + x2) / 4, (y1 + y1) / 2, (z1 + z2) / 2)
 
 
 # Parse a string into a 3-number 3D point tuple.
