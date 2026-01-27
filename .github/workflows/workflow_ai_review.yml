@@ -13,7 +13,7 @@ jobs:
     # PR에 'AI-Review'라는 레이블이 포함되어 있을 때만 실행됩니다.
     if: contains(github.event.pull_request.labels.*.name, 'ai_review')
 
-    runs-on: [self-hosted, linux, x64]
+    runs-on: self-hosted
     steps:
       # 1. 코드 체크아웃 (Shallow clone 방지)
       - name: Checkout code
